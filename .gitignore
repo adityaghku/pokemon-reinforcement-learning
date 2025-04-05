@@ -3,11 +3,6 @@ logs/*
 checkpoints/*
 model/*
 
-# But keep the folders themselves by allowing a placeholder file
-!logs/.gitkeep
-!checkpoints/.gitkeep
-!model/.gitkeep
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
