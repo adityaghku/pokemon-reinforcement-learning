@@ -36,8 +36,11 @@ class PPONetwork(nn.Module):
         value = self.value_net(state)
         return action_probs, value
 
-    def get_action(self, state):
+    def get_action(self, state, temperature=1.0):
         action_probs, _ = self.forward(state)
+        # Apply temperature scaling to action probabilities
+        action_probs = action_probs / temperature
+        action_probs = torch.softmax(action_probs, dim=-1)  # Re-normalize after scaling
         dist = torch.distributions.Categorical(action_probs)
         action = dist.sample()
         log_prob = dist.log_prob(action)
@@ -53,6 +56,12 @@ class PPOAgent:
         self.clip_epsilon = Config.ppo_clip_epsilon
         self.value_loss_coef = Config.ppo_value_loss_coef
         self.entropy_coef = Config.ppo_entropy_coef
+        # Exploration parameters
+        self.initial_temperature = Config.ppo_initial_temperature
+        self.min_temperature = Config.ppo_min_temperature
+        self.temperature_decay = Config.ppo_temperature_decay
+        self.current_temperature = self.initial_temperature
+        self.step_count = 0
 
     def compute_loss(self, trajectory):
         states, actions, log_probs_old, returns, advantages = trajectory
@@ -94,7 +103,17 @@ class PPOAgent:
         loss = self.compute_loss(trajectory)
         loss.backward()
         self.optimizer.step()
+        # Update temperature after each update
+        self.step_count += 1
+        self.current_temperature = max(
+            self.min_temperature,
+            self.initial_temperature * (self.temperature_decay**self.step_count),
+        )
         return loss.item()
+
+    def get_action(self, state):
+        # Use current temperature for action selection
+        return self.network.get_action(state, temperature=self.current_temperature)
 
     def save(self, path):
         torch.save(self.network.state_dict(), path)

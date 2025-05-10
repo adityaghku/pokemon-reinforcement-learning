@@ -1,9 +1,11 @@
 class Config:
     # Environment settings
     path_to_rom = "rom/Pokemon Red.gb"
+    saved_state = "rom/start_state.state"
+    tick = 30
 
     # Training settings
-    max_steps = 1e10
+    max_steps = 100_000
 
     # Model saving
     save_frequency = 50
@@ -27,6 +29,9 @@ class Config:
     ppo_entropy_coef = 0.01
     ppo_episodes = 1000  # need to swtich back to 1000
     ppo_steps = 2048
+    ppo_initial_temperature = 2
+    ppo_min_temperature = 0.1
+    ppo_temperature_decay = 0.999
 
     # to thread?
     ppo_num_envs = 1

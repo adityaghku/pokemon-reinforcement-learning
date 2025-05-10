@@ -7,9 +7,7 @@ import os
 from environment import create_env
 
 
-def evaluate_model(
-    model_path, num_episodes=10, render=True, max_steps=Config.max_steps
-):
+def evaluate_model(model_path, num_episodes=10, render=True, max_steps=1e4):
     """
     Evaluate a trained PPO agent on the Pokémon Red environment.
 

@@ -4,20 +4,35 @@ from environment import create_env
 from NeuralNetwork import PPOAgent
 import os
 from utils import setup_logging
+import numpy as np
+import logging
+
+logger = setup_logging("ppo_training", Config.checkpoint_dir, log_level=logging.DEBUG)
+
+# TODO - MEMORY MAP AND REWARD FUNC
+# TODO - CHECK ACTION MAPPING IN NETWORK TO GAME??
 
 
 def collect_trajectory(env, agent, max_steps):
     states, actions, log_probs, rewards, values = [], [], [], [], []
     state, _ = env.reset()
 
-    for _ in range(max_steps):
+    logger.info("Starting trajectory collection.")
+
+    for step in range(max_steps):
+
         # Use agent.network.get_action instead of agent.get_action
         action, log_prob = agent.network.get_action(state)
+
         # Ensure state is on the correct device for network forward pass
         state_tensor = torch.FloatTensor(state).to(agent.network.device)
         action_probs, value = agent.network(state_tensor)
 
+        # For debugging
+
         next_state, reward, done, _, info = env.step(action)
+
+        logger.debug(f"Step: {step}, Action : {action}, Reward: {reward}")
 
         states.append(state)
         actions.append(action)
@@ -28,6 +43,7 @@ def collect_trajectory(env, agent, max_steps):
         state = next_state
 
         if done:
+            logger.info(f"Episode finished after {step} steps")
             state, _ = env.reset()
 
     # Compute returns and advantages
@@ -44,12 +60,14 @@ def collect_trajectory(env, agent, max_steps):
         returns.insert(0, gae + values[t])
         advantages.insert(0, gae)
 
+    logger.info(f"Trajectory collected with {len(states)} steps.")
+    logger.info(f"Total cumulative reward: {np.sum(rewards):.2f}")
+    logger.info(f"Mean advantage: {np.mean(advantages):.4f}")
+
     return (states, actions, log_probs, returns, advantages)
 
 
 def training():
-    # Setup logging
-    logger = setup_logging("ppo_training", Config.checkpoint_dir)
 
     # Initialize single environment and agent
     env = create_env()
@@ -60,7 +78,7 @@ def training():
     # Start environment
     logger.info("Starting environment...")
     env.start()
-    logger.info("Reached game start in environment...")
+    logger.info("Loaded game start...")
 
     best_loss = float("inf")
 

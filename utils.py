@@ -7,7 +7,7 @@ from datetime import datetime
 def setup_logging(
     log_file_name,
     log_dir,
-    log_level=logging.INFO,
+    log_level=logging.DEBUG,
 ):
     """
     Set up logging to a file and standard output with detailed formatting.
