@@ -5,3 +5,55 @@ D1C6,Pokemon 3 Level
 D1F2,Pokemon 4 Level
 D21E,Pokemon 5 Level
 D24A,Pokemon 6 Level
+D2F7,Own 1-8
+D2F8,Own 9-16
+D2F9,Own 17-24
+D2FA,Own 25-32
+D2FB,Own 33-40
+D2FC,Own 41-48
+D2FD,Own 49-56
+D2FE,Own 57-64
+D2FF,Own 65-72
+D300,Own 73-80
+D301,Own 81-88
+D302,Own 89-96
+D303,Own 97-104
+D304,Own 105-112
+D305,Own 113-120
+D306,Own 121-128
+D307,Own 129-136
+D308,Own 137-144
+D309,Own 145-152
+D057,Battle flag
+D163,# of party pokemon
+D16C,Pokemon 1 HP Byte 1
+D16D,Pokemon 1 HP Byte  2
+D198,Pokemon 2 HP Byte 1
+D199,Pokemon 2 HP Byte  2
+D1C4,Pokemon 3 HP Byte 1
+D1C5,Pokemon 3 HP Byte  2
+D1F0,Pokemon 4 HP Byte 1
+D1F1,Pokemon 4 HP Byte  2
+D21C,Pokemon 5 HP Byte 1
+D21D,Pokemon 5 HP Byte  2
+D248,Pokemon 6 HP Byte 1
+D249,Pokemon 6 HP Byte  2
+D35E,Cur Map ID
+D356,Obtained Badges
+D72E ,Event flag Did you get Lapras Yet?
+D732 ,Event flag Debug New Game
+D751 ,Event flag Fought Giovanni Yet?
+D755 ,Event flag Fought Brock Yet?
+D75E ,Event flag Fought Misty Yet?
+D773 ,Event flag Fought Lt. Surge Yet?
+D77C ,Event flag Fought Erika Yet?
+D782 ,Event flag Fought Articuno Yet?
+D790 ,"Event flag If bit 7 is set, Safari Game over"
+D792 ,Event flag Fought Koga Yet?
+D79A ,Event flag Fought Blaine Yet?
+D7B3 ,Event flag Fought Sabrina Yet?
+D7D4 ,Event flag Fought Zapdos Yet?
+D7D8 ,Event flag Fought Snorlax Yet (Vermilion)
+D7E0 ,Event flag Fought Snorlax Yet? (Celadon)
+D7EE ,Event flag Fought Moltres Yet?
+D803 ,Event flag Is SS Anne here?

@@ -114,6 +114,10 @@ def training():
                         os.path.join(Config.model_dir, f"{Config.model_name}_best.pth")
                     )
 
+    except KeyboardInterrupt:
+        logger.info("Closing program due to KeyboardInterrupt")
+        env.close()
+
     except Exception as e:
         logger.error(f"Training failed: {e}")
         raise

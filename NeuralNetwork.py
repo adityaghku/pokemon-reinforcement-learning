@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from config import Config
+import random
 
 
 class PPONetwork(nn.Module):
@@ -12,8 +13,10 @@ class PPONetwork(nn.Module):
         self.policy_net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(hidden_dim, action_dim),
             nn.Softmax(dim=-1),
         )
@@ -70,7 +73,9 @@ class PPOAgent:
         actions = torch.LongTensor(actions).to(self.network.device)
         log_probs_old = torch.FloatTensor(log_probs_old).to(self.network.device)
         returns = torch.FloatTensor(returns).to(self.network.device)
+
         advantages = torch.FloatTensor(advantages).to(self.network.device)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         action_probs, values = self.network(states)
         dist = torch.distributions.Categorical(action_probs)
@@ -111,9 +116,11 @@ class PPOAgent:
         )
         return loss.item()
 
-    def get_action(self, state):
-        # Use current temperature for action selection
-        return self.network.get_action(state, temperature=self.current_temperature)
+    def get_action(self, state, temperature=1.0, epsilon=0.1):
+        if random.random() < epsilon:
+            action = random.randint(0, self.network.action_dim - 1)
+            return action, torch.tensor(0.0).to(self.network.device)  # Dummy log_prob
+        return self.network.get_action(state, temperature)
 
     def save(self, path):
         torch.save(self.network.state_dict(), path)
