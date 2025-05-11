@@ -1,8 +1,11 @@
+from pyboy.utils import WindowEvent
+
+
 class Config:
     # Environment settings
     path_to_rom = "rom/Pokemon Red.gb"
     saved_state = "rom/start_state.state"
-    tick = 30
+    tick = 24
 
     # Training settings
     max_steps = 100_000
@@ -28,7 +31,6 @@ class Config:
     ppo_value_loss_coef = 0.5
     ppo_entropy_coef = 0.01
     ppo_episodes = 1000  # need to swtich back to 1000
-    ppo_steps = 2048
     ppo_initial_temperature = 2
     ppo_min_temperature = 0.1
     ppo_temperature_decay = 0.999
@@ -36,13 +38,24 @@ class Config:
     # to thread?
     ppo_num_envs = 1
 
+    # button_map = {
+    #     0: "a",
+    #     1: "b",
+    #     2: "start",
+    #     3: "up",
+    #     4: "down",
+    #     5: "left",
+    #     6: "right",
+    #     # 7: 'select'
+    # }
+
     button_map = {
-        0: "a",
-        1: "b",
-        2: "start",
-        3: "up",
-        4: "down",
-        5: "left",
-        6: "right",
+        0: [WindowEvent.PRESS_BUTTON_A, WindowEvent.RELEASE_BUTTON_A],
+        1: [WindowEvent.PRESS_BUTTON_B, WindowEvent.RELEASE_BUTTON_B],
+        2: [WindowEvent.PRESS_BUTTON_START, WindowEvent.RELEASE_BUTTON_START],
+        3: [WindowEvent.PRESS_ARROW_UP, WindowEvent.RELEASE_ARROW_UP],
+        4: [WindowEvent.PRESS_ARROW_DOWN, WindowEvent.RELEASE_ARROW_DOWN],
+        5: [WindowEvent.PRESS_ARROW_LEFT, WindowEvent.RELEASE_ARROW_LEFT],
+        6: [WindowEvent.PRESS_ARROW_RIGHT, WindowEvent.RELEASE_ARROW_RIGHT],
         # 7: 'select'
     }

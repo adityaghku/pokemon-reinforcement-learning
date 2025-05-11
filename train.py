@@ -9,9 +9,6 @@ import logging
 
 logger = setup_logging("ppo_training", Config.checkpoint_dir, log_level=logging.DEBUG)
 
-# TODO - MEMORY MAP AND REWARD FUNC
-# TODO - CHECK ACTION MAPPING IN NETWORK TO GAME??
-
 
 def collect_trajectory(env, agent, max_steps):
     states, actions, log_probs, rewards, values = [], [], [], [], []
@@ -29,8 +26,10 @@ def collect_trajectory(env, agent, max_steps):
         action_probs, value = agent.network(state_tensor)
 
         # For debugging
+        # import random
+        # action = random.randint(0, 6)
 
-        next_state, reward, done, _, info = env.step(action)
+        next_state, reward, done = env.step(action)
 
         logger.debug(f"Step: {step}, Action : {action}, Reward: {reward}")
 
@@ -70,7 +69,7 @@ def collect_trajectory(env, agent, max_steps):
 def training():
 
     # Initialize single environment and agent
-    env = create_env()
+    env = create_env(render=False)
     input_dim = env.observation_space.shape[0]
     action_dim = len(Config.button_map)
     agent = PPOAgent(input_dim, action_dim)
@@ -86,7 +85,7 @@ def training():
         for episode in range(Config.ppo_episodes):
             # Collect single trajectory
             logger.info(f"Collecting trajectory for episode {episode}...")
-            trajectory = collect_trajectory(env, agent, Config.ppo_steps)
+            trajectory = collect_trajectory(env, agent, Config.max_steps)
 
             # Update agent
             loss = agent.update(trajectory)

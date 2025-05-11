@@ -2,7 +2,8 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 from pyboy import PyBoy
-import random
+import pandas as pd
+from pyboy.utils import WindowEvent
 
 # from pyboy.plugins.game_wrapper_pokemon_gen1 import GameWrapperPokemonGen1
 from config import Config
@@ -18,7 +19,13 @@ GameWrapperPokemonGen1 - already returned, check if the methods defined in this 
 class PokemonRedEnv(gym.Env):
 
     def __init__(
-        self, path_to_rom, max_steps, action_space, render=False, save=False, sound=True
+        self,
+        path_to_rom,
+        max_steps,
+        action_space,
+        render=False,
+        save=False,
+        sound=False,
     ):
         super(PokemonRedEnv, self).__init__()
 
@@ -34,37 +41,50 @@ class PokemonRedEnv(gym.Env):
         # Max steps per episode
         self.max_steps = max_steps
 
+        self.HEX_START = 0xC000
+
         # Observation space (all Memory)
-        self.observation_space = np.zeros(65536, dtype=np.uint8)
+        # BANK 1 ONLY
+        self.observation_space = np.zeros(8192, dtype=np.uint8)
+
         self.visited_tiles = set()
+        self.prev_game_area_tuple = None
+
+        self.ram_map = (
+            pd.read_csv("ram_map.csv").set_index("HEX")["Description"].to_dict()
+        )
 
     def start(self):
         # Start the PyBoy instance and game,
 
         self.current_step = 0
         self.pyboy = PyBoy(
-            self.path_to_rom, sound_emulated=self.sound, cgb=None, log_level="DEBUG"
+            self.path_to_rom,
+            sound_emulated=self.sound,
+            cgb=None,
+            log_level="DEBUG",
+            no_input=False,
         )
 
         self.game_wrapper = self.pyboy.game_wrapper
 
         assert self.pyboy.cartridge_title == "POKEMON RED"
 
-        # 2x speed
-        self.pyboy.set_emulation_speed(2)
+        # 6x speed
+        self.pyboy.set_emulation_speed(6)
 
         # Manually configured start point
         with open(Config.saved_state, "rb") as f:
             self.pyboy.load_state(f)
 
         # Inject randomness into the start state
-        random_ticks = random.randint(0, 10)
-        for _ in range(random_ticks):
-            self.pyboy.tick(Config.tick, render=self.render)
+        # random_ticks = random.randint(0, 10)
+        # for _ in range(random_ticks):
+        #     self.pyboy.tick(Config.tick, render=self.render)
 
     def reset(self):
         # Reset the game state
-        self.pyboy.stop()
+        self.close()
         self.start()
 
         # Return the initial observation
@@ -74,12 +94,9 @@ class PokemonRedEnv(gym.Env):
     def step(self, action):
         assert self.action_space.contains(action)
 
-        # Execute the action (button press)
         self._take_action(action)
 
-        # Increment step counter
         self.current_step += 1
-        self.pyboy.tick(count=Config.tick, render=self.render)
 
         # Get the current observation
         observation = self._get_observation()
@@ -90,21 +107,19 @@ class PokemonRedEnv(gym.Env):
         # Check if the episode is done
         done = self.current_step >= self.max_steps
 
-        if done:
-            print(
-                f"Episode done: current_step={self.current_step}, max_steps={self.max_steps}"
-            )
+        return observation, reward, done
 
-        # Additional info (can be used for debugging)
-        info = {
-            "game_area_collision": self.game_wrapper.game_area_collision,
-            "game_area": self.game_wrapper.game_area,
-            # "player_position": self.game_wrapper.player_position,
-        }
+    def _take_action(self, action):
 
-        truncated = False  # what is this??
+        buttons = Config.button_map.get(action, None)
 
-        return observation, reward, done, truncated, info
+        # press button then release after some steps
+        self.pyboy.send_input(buttons[0])
+
+        for i in range(Config.tick):
+            if i == 8:
+                self.pyboy.send_input(buttons[1])
+            self.pyboy.tick()
 
     def close(self):
 
@@ -114,14 +129,6 @@ class PokemonRedEnv(gym.Env):
         # ONLY ONCE TO SKIP START SCREEN
         # with open(Config.saved_state, "wb") as f:
         #     self.pyboy.save_state(f)
-
-    def _take_action(self, action):
-        # Map action to button press
-
-        button = Config.button_map.get(action, None)
-
-        if button:
-            self.pyboy.button(button, delay=1)
 
     def _get_observation(self):
 
@@ -137,7 +144,10 @@ class PokemonRedEnv(gym.Env):
         # They are idenrical , we go till hex 0x10000 and stop there (maybe truncate the memory space)
 
         # This is the full observation space, I can try to reduce it maybe
-        self.observation_space = np.array(self.pyboy.memory[0x0000:0x10000])
+        # I reduced it to bank 1
+        self.observation_space = np.array(
+            self.pyboy.memory[self.HEX_START : 0xE000], dtype=np.uint8
+        )
 
         return self.observation_space
 
@@ -145,12 +155,8 @@ class PokemonRedEnv(gym.Env):
         # Get the current game area (tile map)
         game_area = self.game_wrapper.game_area()
 
-        # Convert game area to a tuple for hashability (since it's a numpy array)
+        # Convert game area to a tuple for hashability
         game_area_tuple = tuple(game_area.flatten())
-
-        # Track visited tiles in a set (persist across steps, initialize in __init__)
-        if not hasattr(self, "visited_tiles"):
-            self.visited_tiles = set()
 
         # Reward for new tiles: +1 if the current game area hasn't been seen before
         reward = 0
@@ -158,7 +164,59 @@ class PokemonRedEnv(gym.Env):
             reward = 1.0
             self.visited_tiles.add(game_area_tuple)
 
+        # Penalize staying in the same place
+        if (
+            self.prev_game_area_tuple is not None
+            and game_area_tuple == self.prev_game_area_tuple
+        ):
+            reward -= 0.01  # Small negative reward for idling
+
+        # Update previous game area
+        self.prev_game_area_tuple = game_area_tuple
+
+        # Reward for pokemon level sum
+        reward += self.get_pokemon_levels_sum()
+
         return reward
+
+    def get_pokemon_levels_sum(self):
+        """
+        Calculate the sum of the levels of the six Pokémon in the player's party.
+        Uses memory addresses from the RAM map for Pokémon levels.
+        """
+        # Define the memory addresses for Pokémon levels
+        level_addresses = ["D16E", "D19A", "D1C6", "D1F2", "D21E", "D24A"]
+
+        # Initialize sum of levels
+        total_level = 0
+
+        # Access the observation space
+        memory = self.observation_space
+
+        # Iterate through the addresses
+        for addr in level_addresses:
+            if (
+                addr in self.ram_map
+                and "Pokemon" in self.ram_map[addr]
+                and "Level" in self.ram_map[addr]
+            ):
+                # Convert hex address to decimal index
+                decimal_addr = int(addr, 16) - self.HEX_START
+
+                # Ensure the address is within the observation space
+                if decimal_addr < len(memory):
+                    level = memory[decimal_addr]
+                    if level < 0:
+                        level = 0
+                    total_level += level
+                else:
+                    print(f"Warning: Address {addr} out of observation space range")
+            else:
+                print(
+                    f"Warning: Address {addr} not found in RAM map or not a Pokémon level"
+                )
+
+        return total_level
 
 
 def create_env(render=True):
