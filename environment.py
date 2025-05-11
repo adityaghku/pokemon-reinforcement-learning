@@ -92,9 +92,10 @@ class PokemonRedEnv(gym.Env):
         for _ in range(random_ticks):
             self.pyboy.tick(Config.tick, render=self.render)
 
-    def reset(self):
+    def reset(self, episode):
         # Reset the game state
-        self.close()
+
+        self.close(episode)
         self.start()
 
         # Return the initial observation
@@ -130,34 +131,37 @@ class PokemonRedEnv(gym.Env):
         self.pyboy.send_input(buttons[1])
         self.pyboy.tick(Config.tick - 8)
 
-    def close(self):
+    def close(self, episode):
 
         # Close the PyBoy instance
         self.pyboy.stop(save=self.save)
 
-        # Find the highest index
-        highest_index = 0
+        # Save every 10 episodes
+        if episode % 10 == 0:
 
-        if self.save_files:
-            for file in self.save_files:
-                if file != Config.start_state:
-                    try:
-                        index = int(file.split("_")[0].replace("rom/", ""))
-                        highest_index = max(highest_index, index)
-                    except ValueError:
-                        continue
+            self.save_files = [
+                f"rom/{f}" for f in os.listdir("rom") if f.endswith("_save.state")
+            ]
 
-        print(highest_index)
-        print(self.save_files)
+            # Find the highest index
+            highest_index = 0
 
-        # Create new filename with incremented index
-        new_index = highest_index + 1
-        file_name = f"rom/{new_index}_save.state"
-        print(file_name)
+            if self.save_files:
+                for file in self.save_files:
+                    if file != Config.start_state:
+                        try:
+                            index = int(file.split("_")[0].replace("rom/", ""))
+                            highest_index = max(highest_index, index)
+                        except ValueError:
+                            continue
 
-        # Save the state to the file
-        with open(file_name, "wb") as f:
-            self.pyboy.save_state(f)
+            # Create new filename with incremented index
+            new_index = highest_index + 1
+            file_name = f"rom/{new_index}_save.state"
+
+            # Save the state to the file
+            with open(file_name, "wb") as f:
+                self.pyboy.save_state(f)
 
     def _get_observation(self):
 

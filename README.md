@@ -7,4 +7,10 @@ We only use Bank 1 and the map for the rewards because the other banks are usele
 
 The environment is rendered using PyBoy
 
+Reward Function:
+1. 
+
+Progress:
+1. With the standing penalty it started to explore a lot more and open the start menu less as time progressed
+
 Disclaimer: I used LLMS such as ChatGPT and Grok for the code snippet generation

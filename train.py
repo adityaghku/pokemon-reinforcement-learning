@@ -6,15 +6,18 @@ import os
 from utils import setup_logging
 import numpy as np
 import logging
+import tqdm
 
 logger = setup_logging("ppo_training", Config.checkpoint_dir, log_level=logging.DEBUG)
 
 
-def collect_trajectory(env, agent, max_steps):
+def collect_trajectory(env, agent, max_steps, episode):
     states, actions, log_probs, rewards, values = [], [], [], [], []
-    state, _ = env.reset()
+    state, _ = env.reset(episode)
 
     logger.info("Starting trajectory collection.")
+
+    pbar = tqdm.tqdm(total=max_steps)
 
     for step in range(max_steps):
 
@@ -31,7 +34,11 @@ def collect_trajectory(env, agent, max_steps):
 
         next_state, reward, done = env.step(action)
 
-        logger.debug(f"Step: {step}, Action : {action}, Reward: {reward}")
+        description = (
+            f"Episode: {episode}, Step: {step}, Action: {action}, Reward: {reward:.2f}"
+        )
+        pbar.set_description(description.ljust(50))
+        pbar.update(1)
 
         states.append(state)
         actions.append(action)
@@ -43,7 +50,7 @@ def collect_trajectory(env, agent, max_steps):
 
         if done:
             logger.info(f"Episode finished after {step} steps")
-            state, _ = env.reset()
+            state, _ = env.reset(episode)
 
     # Compute returns and advantages
     returns = []
@@ -83,9 +90,10 @@ def training():
 
     try:
         for episode in range(Config.ppo_episodes):
+
             # Collect single trajectory
             logger.info(f"Collecting trajectory for episode {episode}...")
-            trajectory = collect_trajectory(env, agent, Config.max_steps)
+            trajectory = collect_trajectory(env, agent, Config.max_steps, episode)
 
             # Update agent
             loss = agent.update(trajectory)
@@ -116,7 +124,8 @@ def training():
 
     except KeyboardInterrupt:
         logger.info("Closing program due to KeyboardInterrupt")
-        env.close()
+        # placeholder to save
+        env.close(episode=0)
 
     except Exception as e:
         logger.error(f"Training failed: {e}")
@@ -124,7 +133,9 @@ def training():
     finally:
         # Cleanup
         logger.info("Closing environment...")
-        env.close()
+
+        # placeholder to save
+        env.close(episode=0)
 
 
 if __name__ == "__main__":

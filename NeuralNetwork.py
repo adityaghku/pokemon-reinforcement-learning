@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from config import Config
 import random
+import numpy as np
 
 
 class PPONetwork(nn.Module):
@@ -34,7 +35,7 @@ class PPONetwork(nn.Module):
         self.to(self.device)
 
     def forward(self, state):
-        state = torch.FloatTensor(state).to(self.device)
+        state = torch.FloatTensor(np.array(state)).to(self.device)
         action_probs = self.policy_net(state)
         value = self.value_net(state)
         return action_probs, value
@@ -69,12 +70,14 @@ class PPOAgent:
     def compute_loss(self, trajectory):
         states, actions, log_probs_old, returns, advantages = trajectory
 
-        states = torch.FloatTensor(states).to(self.network.device)
-        actions = torch.LongTensor(actions).to(self.network.device)
-        log_probs_old = torch.FloatTensor(log_probs_old).to(self.network.device)
-        returns = torch.FloatTensor(returns).to(self.network.device)
+        states = torch.FloatTensor(np.array(states)).to(self.network.device)
+        actions = torch.LongTensor(np.array(actions)).to(self.network.device)
+        log_probs_old = torch.FloatTensor(np.array(log_probs_old)).to(
+            self.network.device
+        )
+        returns = torch.FloatTensor(np.array(returns)).to(self.network.device)
 
-        advantages = torch.FloatTensor(advantages).to(self.network.device)
+        advantages = torch.FloatTensor(np.array(advantages)).to(self.network.device)
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         action_probs, values = self.network(states)
