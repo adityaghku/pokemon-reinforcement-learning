@@ -119,4 +119,3 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 - [PyBoy](https://github.com/Baekalfen/PyBoy): Game Boy emulator for Python.
 - [Gymnasium](https://gymnasium.farama.org/): RL environment framework.
 - [PyTorch](https://pytorch.org/): Deep learning framework for PPO implementation.
-- Inspired by RL projects for retro games and Pokémon challenges.
