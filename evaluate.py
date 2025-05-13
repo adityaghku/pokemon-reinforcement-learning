@@ -21,7 +21,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, max_steps=1e4):
     logger = setup_logging("ppo_evaluation", Config.checkpoint_dir)
 
     # Initialize environment
-    env = create_env(render=render)
+    env = create_env(render=render, process_id=0)
 
     # Initialize agent
     input_dim = env.observation_space.shape[0]

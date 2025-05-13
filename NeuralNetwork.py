@@ -32,6 +32,7 @@ class PPONetwork(nn.Module):
         )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.action_dim = action_dim
         self.to(self.device)
 
     def forward(self, state):
@@ -122,7 +123,7 @@ class PPOAgent:
     def get_action(self, state, temperature=1.0, epsilon=0.1):
         if random.random() < epsilon:
             action = random.randint(0, self.network.action_dim - 1)
-            return action, torch.tensor(0.0).to(self.network.device)  # Dummy log_prob
+            return action, torch.tensor(0.0).to(self.network.device)
         return self.network.get_action(state, temperature)
 
     def save(self, path):

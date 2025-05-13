@@ -22,6 +22,8 @@ class Config:
     keep_checkpoints = 10
     save_best = True
 
+    ppo_episodes = 200
+
     # PPO hyperparameters
     ppo_hidden_dim = 512
     ppo_learning_rate = 3e-4
@@ -30,13 +32,12 @@ class Config:
     ppo_lambda = 0.95
     ppo_value_loss_coef = 0.5
     ppo_entropy_coef = 0.01
-    ppo_episodes = 1000
     ppo_initial_temperature = 1.5
     ppo_min_temperature = 0.1
     ppo_temperature_decay = 0.999
 
     # to thread?
-    ppo_num_envs = 1
+    ppo_num_envs = 4
 
     button_map = {
         0: [WindowEvent.PRESS_BUTTON_A, WindowEvent.RELEASE_BUTTON_A],

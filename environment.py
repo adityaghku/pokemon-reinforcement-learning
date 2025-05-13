@@ -5,6 +5,8 @@ import pandas as pd
 from config import Config
 import random
 import os
+from utils import clean_saves
+import uuid
 
 """
 https://docs.pyboy.dk/index.html
@@ -24,6 +26,7 @@ class PokemonRedEnv(gym.Env):
         render=False,
         save=False,
         sound=False,
+        process_id=0,
     ):
         super(PokemonRedEnv, self).__init__()
 
@@ -32,6 +35,7 @@ class PokemonRedEnv(gym.Env):
         self.render = render
         self.save = save
         self.sound = sound
+        self.process_id = process_id
 
         # Define action space (buttons: A, B, Start, Up, Down, Left, Right)
         self.action_space = list(action_space.keys())
@@ -49,6 +53,8 @@ class PokemonRedEnv(gym.Env):
             pd.read_csv("ram_map.csv").set_index("HEX")["Description"].to_dict()
         )
 
+        clean_saves()
+
         self.save_files = [
             f"rom/{f}" for f in os.listdir("rom") if f.endswith("_save.state")
         ]
@@ -63,6 +69,7 @@ class PokemonRedEnv(gym.Env):
         self.prev_hp = None
         self.in_battle = 0
         self.prev_event_flags = None
+        self.in_battle = 0
 
         self.current_step = 0
         self.pyboy = PyBoy(
@@ -132,36 +139,26 @@ class PokemonRedEnv(gym.Env):
         self.pyboy.tick(Config.tick - 8)
 
     def close(self, episode):
-
-        # Close the PyBoy instance
-        self.pyboy.stop(save=self.save)
-
-        # Save every 10 episodes
-        if episode % 10 == 0:
-
-            self.save_files = [
-                f"rom/{f}" for f in os.listdir("rom") if f.endswith("_save.state")
-            ]
-
-            # Find the highest index
-            highest_index = 0
-
-            if self.save_files:
-                for file in self.save_files:
-                    if file != Config.start_state:
-                        try:
-                            index = int(file.split("_")[0].replace("rom/", ""))
-                            highest_index = max(highest_index, index)
-                        except ValueError:
-                            continue
-
-            # Create new filename with incremented index
-            new_index = highest_index + 1
-            file_name = f"rom/{new_index}_save.state"
-
-            # Save the state to the file
-            with open(file_name, "wb") as f:
-                self.pyboy.save_state(f)
+        if self.pyboy is not None:
+            # Save with unique filename per process
+            if episode % 50 == 0 and self.save:
+                self.save_files = [
+                    f"rom/{f}" for f in os.listdir("rom") if f.endswith("_save.state")
+                ]
+                highest_index = 0
+                if self.save_files:
+                    for file in self.save_files:
+                        if file != Config.start_state:
+                            try:
+                                index = int(file.split("_")[0].replace("rom/", ""))
+                                highest_index = max(highest_index, index)
+                            except ValueError:
+                                continue
+                # Use process_id and UUID for unique save file
+                file_name = f"rom/{highest_index + 1}_save_p{self.process_id}_{uuid.uuid4().hex[:8]}.state"
+                with open(file_name, "wb") as f:
+                    self.pyboy.save_state(f)
+            self.pyboy.stop(save=self.save)
 
     def _get_observation(self):
 
@@ -188,28 +185,40 @@ class PokemonRedEnv(gym.Env):
         reward = 0
 
         # Exploration reward
-        reward += self.get_exploration_reward()
-        # print(f"exploration {reward}")
+        exploration_reward = self.get_exploration_reward()
+        reward += exploration_reward
 
-        # Reward for pokemon level sum
-        reward += self.get_pokemon_levels_sum()
-        # print(f"levels {reward}")
+        # Reward for Pokémon level sum
+        level_sum_reward = self.get_pokemon_levels_sum()
+        reward += level_sum_reward
 
-        # Reward for catching new pokemon
-        reward += self.get_unique_pokemon_owned()
-        # print(f"unique pokemon {reward}")
+        # Reward for catching new Pokémon
+        unique_pokemon_reward = self.get_unique_pokemon_owned()
+        reward += unique_pokemon_reward
 
         # Reward for winning battles
-        reward += self.won_battle()
-        # print(f"battle won {reward}")
+        battle_reward = self.won_battle()
+        reward += battle_reward
 
-        # HP
-        hp_change = self.get_change_in_pokemon_hp()
-        if hp_change > 0:  #  small positive for healing
-            reward += 5
-        else:  # negative for losing
-            reward += 2 * hp_change
-        # print(f"hp change {reward}")
+        # TODO - HP change needs to be fixed
+        # hp_change = self.get_change_in_pokemon_hp()
+        # if hp_change > 0:
+        #     hp_reward = 5  # Healing bonus
+        # else:
+        #     hp_reward = 2 * hp_change  # Penalty for damage
+        # reward += hp_reward
+
+        # Print reward decomposition for debugging
+        # print(
+        #     f"[Reward Breakdown] "
+        #     f"Exploration: {exploration_reward:.2f}, "
+        #     f"Level Sum: {level_sum_reward:.2f}, "
+        #     f"Unique Pokémon: {unique_pokemon_reward:.2f}, "
+        #     f"Battle: {battle_reward:.2f}, "
+        #     f"HP Change: {hp_change:.2f}, "
+        #     f"HP Reward: {hp_reward:.2f}, "
+        #     f"Total: {reward:.2f}"
+        # )
 
         return reward
 
@@ -231,7 +240,7 @@ class PokemonRedEnv(gym.Env):
         # Reward for new tiles on this map
         if game_area_tuple not in self.visited_tiles_by_map[map_id]:
             self.visited_tiles_by_map[map_id].add(game_area_tuple)
-            reward += 1.0  # Reward for new tile configuration
+            reward += 10.0  # Reward for new tile configuration
 
         # Penalize staying in the same place
         if (
@@ -239,7 +248,7 @@ class PokemonRedEnv(gym.Env):
             and game_area_tuple == self.prev_game_area_tuple
             and map_id == self.prev_map_id
         ):
-            reward -= 0.01  # Small penalty for idling
+            reward -= 0.1  # Small penalty for idling
 
         # Update previous state
         self.prev_game_area_tuple = game_area_tuple
@@ -282,8 +291,9 @@ class PokemonRedEnv(gym.Env):
         for addr, value in self.ram_map.items():
             if value.startswith("Own "):
                 count = self.get_ram_value_in_state(addr)
+                # print(f"Unique pokemon {addr} {count}")
                 total += max(0, count)
-        return total
+        return total * 5 / 8  # (conversion)
 
     def get_number_of_party_pokemon(self):
         return self.get_ram_value_in_state("D163")
@@ -312,6 +322,8 @@ class PokemonRedEnv(gym.Env):
             hp = (high_byte * 256) + low_byte  # Combine bytes
             current_total_hp += hp
 
+            # print(f"{i} {hp}")
+
         # Calculate change in HP
         if self.prev_hp is None:
             # First call: No previous HP, so change is 0
@@ -327,15 +339,14 @@ class PokemonRedEnv(gym.Env):
 
     def won_battle(self):
         battle_state = self.get_ram_value_in_state("D057")
-        reward = 0
-        if battle_state == 1:  # Player won
-            reward = 100
-        elif battle_state == 2:  # Player lost
-            reward = -100
-        elif battle_state == 3:  # Player fled
-            reward = -50
-        self.in_battle = 1 if battle_state != 0 else 0
-        return reward
+
+        if battle_state == 0 and self.in_battle == 1:
+            self.in_battle = battle_state
+            return 100  # Won a battle
+
+        self.in_battle = battle_state
+
+        return 0
 
     def get_story_event_reward(self):
         # Read current event flags (D747-D74E)
@@ -379,10 +390,11 @@ class PokemonRedEnv(gym.Env):
             return 0
 
 
-def create_env(render):
+def create_env(render, process_id=0):
     return PokemonRedEnv(
         Config.path_to_rom,
         max_steps=Config.max_steps,
         action_space=Config.button_map,
         render=render,
+        process_id=process_id,
     )
