@@ -8,7 +8,7 @@ class Config:
     tick = 24
 
     # Training settings
-    max_steps = 10000
+    max_steps = 50000
 
     # Model saving
     save_frequency = 50
@@ -37,7 +37,7 @@ class Config:
     ppo_temperature_decay = 0.999
 
     # to thread?
-    ppo_num_envs = 4
+    ppo_num_envs = 3
 
     button_map = {
         0: [WindowEvent.PRESS_BUTTON_A, WindowEvent.RELEASE_BUTTON_A],

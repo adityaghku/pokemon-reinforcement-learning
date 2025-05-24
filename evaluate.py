@@ -42,7 +42,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, max_steps=1e4):
     episode_rewards = []
     episode_steps = []
     for episode in range(num_episodes):
-        state, _ = env.reset()
+        state, _ = env.reset(episode)
         total_reward = 0
         steps = 0
         done = False
@@ -53,7 +53,7 @@ def evaluate_model(model_path, num_episodes=10, render=True, max_steps=1e4):
             action = torch.argmax(action_probs).item()
 
             # Step environment
-            next_state, reward, done, _, info = env.step(action)
+            next_state, reward, done = env.step(action)
             total_reward += reward
             steps += 1
             state = next_state
@@ -65,8 +65,6 @@ def evaluate_model(model_path, num_episodes=10, render=True, max_steps=1e4):
             f"Episode {episode + 1}/{num_episodes}: "
             f"Total Reward = {total_reward:.2f}, "
             f"Steps = {steps}, "
-            f"Final Position = {info.get('player_position', 'N/A')}, "
-            f"Game Area = {info.get('game_area', 'N/A')}"
         )
 
     # Log summary statistics

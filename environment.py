@@ -65,10 +65,10 @@ class PokemonRedEnv(gym.Env):
         self.visited_tiles_by_map = {}  # Map ID (D35E) -> set of tile tuples
         self.prev_game_area_tuple = None
         self.prev_map_id = None
-        self.prev_event_flags = None
         self.prev_hp = None
-        self.in_battle = 0
         self.prev_event_flags = None
+        self.prev_level_sum = None
+        self.prev_pokemon_owned = None
         self.in_battle = 0
 
         self.current_step = 0
@@ -98,6 +98,11 @@ class PokemonRedEnv(gym.Env):
         random_ticks = random.randint(0, 10)
         for _ in range(random_ticks):
             self.pyboy.tick(Config.tick, render=self.render)
+
+        # Initialize previous states for reward calculation
+        self.prev_level_sum = self._get_pokemon_levels()
+        self.prev_pokemon_owned = self._get_total_pokemon_owned()
+        self.prev_hp = self._get_total_hp()
 
     def reset(self, episode):
         # Reset the game state
@@ -141,7 +146,7 @@ class PokemonRedEnv(gym.Env):
     def close(self, episode):
         if self.pyboy is not None:
             # Save with unique filename per process
-            if episode % 50 == 0 and self.save:
+            if episode % 50 == 0 and self.save and episode > 0:
                 self.save_files = [
                     f"rom/{f}" for f in os.listdir("rom") if f.endswith("_save.state")
                 ]
@@ -182,43 +187,35 @@ class PokemonRedEnv(gym.Env):
         return self.observation_space
 
     def _get_reward(self):
-        reward = 0
+        reward = 0.0
 
-        # Exploration reward
+        # Exploration reward (already based on changes)
         exploration_reward = self.get_exploration_reward()
-        reward += exploration_reward
+        reward += exploration_reward  # Scale to 0-25 range
 
-        # Reward for Pokémon level sum
-        level_sum_reward = self.get_pokemon_levels_sum()
-        reward += level_sum_reward
+        # Level increase reward
+        level_change_reward = self.get_pokemon_levels_change()
+        reward += level_change_reward * 2.0  # Scale to 0-10 per level
 
-        # Reward for catching new Pokémon
-        unique_pokemon_reward = self.get_unique_pokemon_owned()
-        reward += unique_pokemon_reward
+        # New Pokémon caught reward
+        new_pokemon_reward = self.get_new_pokemon_owned()
+        reward += new_pokemon_reward * 5.0  # Scale to 0-10 per Pokémon
 
-        # Reward for winning battles
+        # Battle win reward
         battle_reward = self.won_battle()
-        reward += battle_reward
+        reward += battle_reward * 0.5  # Scale to 0-10
 
-        # TODO - HP change needs to be fixed
-        # hp_change = self.get_change_in_pokemon_hp()
-        # if hp_change > 0:
-        #     hp_reward = 5  # Healing bonus
-        # else:
-        #     hp_reward = 2 * hp_change  # Penalty for damage
-        # reward += hp_reward
+        # HP change reward
+        hp_change = self.get_change_in_pokemon_hp()
+        hp_reward = hp_change * 0.05  # Scale to ~0-5 (positive or negative)
+        reward += hp_reward
 
-        # Print reward decomposition for debugging
-        # print(
-        #     f"[Reward Breakdown] "
-        #     f"Exploration: {exploration_reward:.2f}, "
-        #     f"Level Sum: {level_sum_reward:.2f}, "
-        #     f"Unique Pokémon: {unique_pokemon_reward:.2f}, "
-        #     f"Battle: {battle_reward:.2f}, "
-        #     f"HP Change: {hp_change:.2f}, "
-        #     f"HP Reward: {hp_reward:.2f}, "
-        #     f"Total: {reward:.2f}"
-        # )
+        # Story event reward (already based on changes)
+        story_reward = self.get_story_event_reward()
+        reward += story_reward  # Scale to 0-10
+
+        # Cap total reward to prevent extreme values
+        reward = np.clip(reward, -10.0, 50.0)
 
         return reward
 
@@ -256,7 +253,7 @@ class PokemonRedEnv(gym.Env):
 
         return reward
 
-    def get_pokemon_levels_sum(self):
+    def _get_pokemon_levels(self):
         """
         Calculate the sum of the levels of the six Pokémon in the player's party.
         Uses memory addresses from the RAM map for Pokémon levels.
@@ -275,9 +272,7 @@ class PokemonRedEnv(gym.Env):
                 and "Level" in self.ram_map[addr]
             ):
                 level = self.get_ram_value_in_state(addr)
-                if level < 0:
-                    level = 0
-                total_level += level
+                total_level += max(0, level)
 
             else:
                 print(
@@ -286,19 +281,36 @@ class PokemonRedEnv(gym.Env):
 
         return total_level
 
-    def get_unique_pokemon_owned(self):
+    def get_pokemon_levels_change(self):
+        current_level_sum = self._get_pokemon_levels()
+        if self.prev_level_sum is None:
+            level_change = 0.0
+        else:
+            level_change = current_level_sum - self.prev_level_sum
+        self.prev_level_sum = current_level_sum
+        return max(0.0, level_change)  # Reward only increases
+
+    def _get_total_pokemon_owned(self):
         total = 0
         for addr, value in self.ram_map.items():
             if value.startswith("Own "):
                 count = self.get_ram_value_in_state(addr)
-                # print(f"Unique pokemon {addr} {count}")
                 total += max(0, count)
-        return total * 5 / 8  # (conversion)
+        return total
+
+    def get_new_pokemon_owned(self):
+        current_pokemon_owned = self._get_total_pokemon_owned()
+        if self.prev_pokemon_owned is None:
+            new_pokemon = 0.0
+        else:
+            new_pokemon = current_pokemon_owned - self.prev_pokemon_owned
+        self.prev_pokemon_owned = current_pokemon_owned
+        return max(0.0, new_pokemon)  # Reward only new Pokémon
 
     def get_number_of_party_pokemon(self):
         return self.get_ram_value_in_state("D163")
 
-    def get_change_in_pokemon_hp(self):
+    def _get_total_hp(self):
         self.hp_addresses = [
             ("D16C", "D16D"),  # Pokémon 1
             ("D198", "D199"),  # Pokémon 2
@@ -307,75 +319,49 @@ class PokemonRedEnv(gym.Env):
             ("D21C", "D21D"),  # Pokémon 5
             ("D248", "D249"),  # Pokémon 6
         ]
-        self.prev_hp = None
-
-        party_count = self.get_number_of_party_pokemon()
-        if party_count > 6:
-            party_count = 6
-
-        current_total_hp = 0
-
+        party_count = min(self.get_number_of_party_pokemon(), 6)
+        total_hp = 0
         for i in range(party_count):
             low_byte_addr, high_byte_addr = self.hp_addresses[i]
-            low_byte = int(self.get_ram_value_in_state(low_byte_addr))  # Cast to int
-            high_byte = int(self.get_ram_value_in_state(high_byte_addr))  # Cast to int
-            hp = (high_byte * 256) + low_byte  # Combine bytes
-            current_total_hp += hp
+            low_byte = int(self.get_ram_value_in_state(low_byte_addr))
+            high_byte = int(self.get_ram_value_in_state(high_byte_addr))
+            hp = (high_byte * 256) + low_byte
+            total_hp += hp
+        return total_hp
 
-            # print(f"{i} {hp}")
-
-        # Calculate change in HP
+    def get_change_in_pokemon_hp(self):
+        current_total_hp = self._get_total_hp()
         if self.prev_hp is None:
-            # First call: No previous HP, so change is 0
-            hp_change = 0
+            hp_change = 0.0
         else:
-            # Change = current total - previous total
             hp_change = current_total_hp - self.prev_hp
-
-        # Update previous HP for next call
         self.prev_hp = current_total_hp
-
-        return hp_change
+        return hp_change  # Positive for healing, negative for damage
 
     def won_battle(self):
         battle_state = self.get_ram_value_in_state("D057")
-
         if battle_state == 0 and self.in_battle == 1:
             self.in_battle = battle_state
-            return 100  # Won a battle
-
+            return 20.0  # Fixed reward for winning
         self.in_battle = battle_state
-
-        return 0
+        return 0.0
 
     def get_story_event_reward(self):
-        # Read current event flags (D747-D74E)
         current_flags = np.zeros(8, dtype=np.uint8)
-
         i = 0
         for key, value in self.ram_map.items():
             if value.startswith("Event flag "):
-                current_flags[i] = self.get_ram_value_in_state(key)
-            i += 1
-
-        # Convert to 64-bit binary (each byte to 8 bits)
+                if i < 8:  # Ensure we don't exceed array bounds
+                    current_flags[i] = self.get_ram_value_in_state(key)
+                    i += 1
         current_bits = np.unpackbits(current_flags, bitorder="little")
-
         if self.prev_event_flags is None:
-            # First call: No reward, just store current state
             self.prev_event_flags = current_bits
             return 0.0
-
-        # Find newly set flags (0 -> 1)
         new_flags = (current_bits == 1) & (self.prev_event_flags == 0)
         num_new_flags = np.sum(new_flags)
-
-        # Reward: +200 per new flag (capped to avoid over-rewarding)
-        reward = min(num_new_flags * 200.0, 1000.0)  # Cap at 1000
-
-        # Update previous flags
+        reward = min(num_new_flags * 200.0, 1000.0)
         self.prev_event_flags = current_bits.copy()
-
         return reward
 
     def get_ram_value_in_state(self, addr):
