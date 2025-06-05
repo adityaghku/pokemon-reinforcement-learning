@@ -2,6 +2,7 @@
 
 This project implements a reinforcement learning (RL) agent using the Proximal Policy Optimization (PPO) algorithm to play *Pokémon Red* on the PyBoy Game Boy emulator. The agent learns to navigate the game, explore the world, battle opponents, and optimize rewards based on exploration, Pokémon levels, battles won, and more.
 
+
 It is heavily inspired by: https://youtu.be/DcYLT37ImBY?si=qg6vcGQ_LsDB6EUa
 
 ## Features
@@ -10,6 +11,11 @@ It is heavily inspired by: https://youtu.be/DcYLT37ImBY?si=qg6vcGQ_LsDB6EUa
 - **Custom Reward System**: Rewards based on exploration, Pokémon levels, unique Pokémon owned, battle outcomes, and HP changes.
 - **Logging and Checkpoints**: Detailed logging and periodic model checkpointing for training monitoring.
 - **Evaluation Mode**: Evaluate trained models with visualization and performance metrics.
+
+## Example Training
+
+![Example Run](static/example_run.gif)
+
 
 ## Requirements
 - Python 3.8+

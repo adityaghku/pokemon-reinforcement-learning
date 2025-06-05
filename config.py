@@ -8,7 +8,7 @@ class Config:
     tick = 24
 
     # Training settings
-    max_steps = 50000
+    max_steps = 100_000
 
     # Model saving
     save_frequency = 50
